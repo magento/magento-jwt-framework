@@ -51,20 +51,21 @@ final class Chacha20Poly1305 implements KeyEncryption
         $k = $this->getKey($key);
         $nonce = random_bytes(12);
 
-        // We set header parameters
-        $additionalHeader['nonce'] = Base64UrlSafe::encodeUnpadded($nonce);
-
-        $result = openssl_encrypt($cek, 'chacha20-poly1305', $k, OPENSSL_RAW_DATA, $nonce);
-        if (false === $result) {
+        $tag = null;
+        $result = openssl_encrypt($cek, 'chacha20-poly1305', $k, OPENSSL_RAW_DATA, $nonce, $tag);
+        if (false === $result || !is_string($tag) || 16 !== mb_strlen($tag, '8bit')) {
             throw new RuntimeException('Unable to encrypt the CEK');
         }
+
+        $additionalHeader['nonce'] = Base64Url::encode($nonce);
+        $additionalHeader['tag'] = Base64Url::encode($tag);
 
         return $result;
     }
 
     /**
      * @throws RuntimeException         if the CEK cannot be decrypted
-     * @throws InvalidArgumentException if the header parameter "nonce" is missing or invalid
+     * @throws InvalidArgumentException if the header parameter "nonce" or "tag" is missing or invalid
      */
     public function decryptKey(JWK $key, string $encrypted_cek, array $header): string
     {
@@ -74,8 +75,12 @@ final class Chacha20Poly1305 implements KeyEncryption
         if (12 !== mb_strlen($nonce, '8bit')) {
             throw new InvalidArgumentException('The header parameter "nonce" is not valid.');
         }
+        $tag = Base64Url::decode($header['tag']);
+        if (16 !== mb_strlen($tag, '8bit')) {
+            throw new InvalidArgumentException('The header parameter "tag" is not valid.');
+        }
 
-        $result = openssl_decrypt($encrypted_cek, 'chacha20-poly1305', $k, OPENSSL_RAW_DATA, $nonce);
+        $result = openssl_decrypt($encrypted_cek, 'chacha20-poly1305', $k, OPENSSL_RAW_DATA, $nonce, $tag);
         if (false === $result) {
             throw new RuntimeException('Unable to decrypt the CEK');
         }
@@ -108,7 +113,7 @@ final class Chacha20Poly1305 implements KeyEncryption
     }
 
     /**
-     * @throws InvalidArgumentException if the header parameter "nonce" is missing or invalid
+     * @throws InvalidArgumentException if the header parameter "nonce" or "tag" is missing or invalid
      */
     private function checkHeaderAdditionalParameters(array $header): void
     {
@@ -117,6 +122,12 @@ final class Chacha20Poly1305 implements KeyEncryption
         }
         if (!is_string($header['nonce'])) {
             throw new InvalidArgumentException('The header parameter "nonce" is not valid.');
+        }
+        if (!isset($header['tag'])) {
+            throw new InvalidArgumentException('The header parameter "tag" is missing.');
+        }
+        if (!is_string($header['tag'])) {
+            throw new InvalidArgumentException('The header parameter "tag" is not valid.');
         }
     }
 }

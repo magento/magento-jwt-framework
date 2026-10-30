@@ -1,5 +1,5 @@
 {
-    "name": "web-token/jwt-framework",
+    "name": "magento/magento-jwt-framework",
     "description": "JSON Object Signing and Encryption library for PHP and Symfony Bundle.",
     "type": "symfony-bundle",
     "license": "MIT",
@@ -130,8 +130,8 @@
         "web-token/jwt-signature-algorithm-experimental": "self.version",
         "web-token/jwt-encryption-algorithm-experimental": "self.version",
         "web-token/signature-pack": "self.version",
-        "web-token/encryption-pack": "self.version"
-
+        "web-token/encryption-pack": "self.version",
+        "web-token/jwt-framework": "^v2.2.7"
     },
    "suggest":{
        "ext-sodium": "Sodium is required for OKP key creation, EdDSA signature algorithm and ECDH-ES key encryption with OKP keys",

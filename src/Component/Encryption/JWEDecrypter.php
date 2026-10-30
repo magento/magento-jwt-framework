@@ -201,10 +201,11 @@ class JWEDecrypter
             return $key_encryption_algorithm->unwrapAgreementKey($recipientKey, $senderKey, $recipient->getEncryptedKey(), $content_encryption_algorithm->getCEKSize(), $completeHeader);
         }
         if ($key_encryption_algorithm instanceof KeyEncryption) {
-            return $key_encryption_algorithm->decryptKey($recipientKey, $recipient->getEncryptedKey(), $completeHeader);
+            // Keep the extra CEK-size argument undeclared so legacy implementations remain compatible.
+            return $key_encryption_algorithm->decryptKey($recipientKey, $recipient->getEncryptedKey(), $completeHeader, $content_encryption_algorithm->getCEKSize());
         }
         if ($key_encryption_algorithm instanceof KeyWrapping) {
-            return $key_encryption_algorithm->unwrapKey($recipientKey, $recipient->getEncryptedKey(), $completeHeader);
+            return $key_encryption_algorithm->unwrapKey($recipientKey, $recipient->getEncryptedKey(), $completeHeader, $content_encryption_algorithm->getCEKSize());
         }
 
         throw new InvalidArgumentException('Unsupported CEK generation');

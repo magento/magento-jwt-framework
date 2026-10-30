@@ -34,6 +34,10 @@ interface KeyEncryption extends KeyEncryptionAlgorithm
      * @param JWK    $key           The key used to wrap the CEK
      * @param string $encrypted_cek The CEK to decrypt
      * @param array  $header        The complete header of the JWT
+     *
+     * JWEDecrypter passes the selected content algorithm's getCEKSize() (in bits)
+     * as an additional fourth argument. It remains undeclared for compatibility
+     * with existing implementations; read it with func_num_args()/func_get_arg(3).
      */
     public function decryptKey(JWK $key, string $encrypted_cek, array $header): string;
 }

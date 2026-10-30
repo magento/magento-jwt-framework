@@ -22,6 +22,8 @@ use ParagonIE\ConstantTime\Base64UrlSafe;
 
 abstract class PBES2AESKW implements KeyWrapping
 {
+    public const DEFAULT_MAX_COUNT = 1000000;
+
     /**
      * @var int
      */
@@ -32,10 +34,19 @@ abstract class PBES2AESKW implements KeyWrapping
      */
     private $nb_count;
 
-    public function __construct(int $salt_size = 64, int $nb_count = 4096)
+    /**
+     * @var int
+     */
+    private $max_count;
+
+    public function __construct(int $salt_size = 64, int $nb_count = 4096, int $max_count = self::DEFAULT_MAX_COUNT)
     {
+        if ($max_count <= 0) {
+            throw new InvalidArgumentException('The maximum iteration count must be positive.');
+        }
         $this->salt_size = $salt_size;
         $this->nb_count = $nb_count;
+        $this->max_count = $max_count;
     }
 
     public function allowedKeyTypes(): array
@@ -132,6 +143,9 @@ abstract class PBES2AESKW implements KeyWrapping
         }
         if (!is_int($header['p2c']) || $header['p2c'] <= 0) {
             throw new InvalidArgumentException('The header parameter "p2c" is not valid.');
+        }
+        if ($header['p2c'] > $this->max_count) {
+            throw new InvalidArgumentException(sprintf('The header parameter "p2c" is too large. The maximum allowed value is %d.', $this->max_count));
         }
     }
 

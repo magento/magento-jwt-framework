@@ -52,14 +52,14 @@ class RSACrypt
         }
     }
 
-    public static function decrypt(RSAKey $key, string $plaintext, int $mode, ?string $hash = null): string
+    public static function decrypt(RSAKey $key, string $plaintext, int $mode, ?string $hash = null, ?int $expectedKeyLength = null): string
     {
         switch ($mode) {
             case self::ENCRYPTION_OAEP:
                 return self::decryptWithRSAOAEP($key, $plaintext, $hash);
 
             case self::ENCRYPTION_PKCS1:
-                return self::decryptWithRSA15($key, $plaintext);
+                return self::decryptWithRSA15($key, $plaintext, $expectedKeyLength);
 
             default:
                 throw new InvalidArgumentException('Unsupported mode.');
@@ -89,7 +89,7 @@ class RSACrypt
         return self::convertIntegerToOctetString($c, $key->getModulusLength());
     }
 
-    public static function decryptWithRSA15(RSAKey $key, string $c): string
+    public static function decryptWithRSA15(RSAKey $key, string $c, ?int $expectedKeyLength = null): string
     {
         if (mb_strlen($c, '8bit') !== $key->getModulusLength()) {
             throw new InvalidArgumentException('Unable to decrypt');
@@ -97,6 +97,9 @@ class RSACrypt
         $c = BigInteger::createFromBinaryString($c);
         $m = self::getRSADP($key, $c);
         $em = self::convertIntegerToOctetString($m, $key->getModulusLength());
+        if (null !== $expectedKeyLength) {
+            return self::extractRSA15KeyOrRandom($em, $expectedKeyLength);
+        }
         if (0 !== ord($em[0]) || ord($em[1]) > 2) {
             throw new InvalidArgumentException('Unable to decrypt');
         }
@@ -153,6 +156,55 @@ class RSACrypt
         }
 
         return $plaintext;
+    }
+
+    private static function extractRSA15KeyOrRandom(string $em, int $expectedKeyLength): string
+    {
+        if ($expectedKeyLength < 1) {
+            throw new InvalidArgumentException('Invalid CEK length.');
+        }
+        $k = mb_strlen($em, '8bit');
+        $random = random_bytes($expectedKeyLength);
+        if ($k < $expectedKeyLength + 11) {
+            return $random;
+        }
+        $candidate = mb_substr($em, $k - $expectedKeyLength, null, '8bit');
+        $valid = self::ctEq(ord($em[0]), 0x00) & self::ctEq(ord($em[1]), 0x02);
+        $seenSeparator = 0;
+        $separatorIndex = 0;
+        $psLength = 0;
+        for ($i = 2; $i < $k; ++$i) {
+            $isZero = self::ctEq(ord($em[$i]), 0x00);
+            $firstZero = $isZero & (1 - $seenSeparator);
+            $separatorIndex |= $firstZero * $i;
+            $psLength += (1 - $seenSeparator) & (1 - $isZero);
+            $seenSeparator |= $isZero;
+        }
+        $valid &= $seenSeparator;
+        $valid &= self::ctGe($psLength, 8);
+        $messageLength = $k - $separatorIndex - 1;
+        $valid &= self::ctEq($messageLength, $expectedKeyLength);
+
+        return self::ctSelect($valid, $candidate, $random);
+    }
+
+    private static function ctEq(int $a, int $b): int
+    {
+        $diff = $a ^ $b;
+
+        return (($diff - 1) >> (PHP_INT_SIZE * 8 - 1)) & 1;
+    }
+
+    private static function ctGe(int $a, int $b): int
+    {
+        return (($b - $a - 1) >> (PHP_INT_SIZE * 8 - 1)) & 1;
+    }
+
+    private static function ctSelect(int $condition, string $a, string $b): string
+    {
+        $mask = str_repeat(chr(($condition * 0xFF) & 0xFF), mb_strlen($a, '8bit'));
+
+        return ($a & $mask) | ($b & ~$mask);
     }
 
     private static function convertIntegerToOctetString(BigInteger $x, int $xLen): string
